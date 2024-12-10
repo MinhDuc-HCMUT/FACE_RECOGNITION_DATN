@@ -4,6 +4,7 @@ import sqlite3
 import os
 import serial
 import time  # Thư viện để quản lý thời gian
+from datetime import datetime
 from PIL import Image
 
 # Initialize face recognizer
@@ -173,6 +174,8 @@ def getImageWithID(path):
     faces = []
     IDs = []
     for imagePath in imagePaths:
+        if not imagePath.endswith(".jpg"):  # Skip non-image files
+            continue
         faceImg = Image.open(imagePath).convert('L')
         faceNp = np.array(faceImg, 'uint8')
         print(faceNp)
@@ -263,6 +266,7 @@ def recognizeFace(ser, cap, face_cascade, recognizer):
                             cv2.putText(frame, str(profile[1]), (x + 10, y + h + 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                             cv2.putText(frame, confidence_text, (x - 30, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                             recognized = True
+                            recognized_id = id  # Store the recognized ID
                             break  # Exit the loop if at least one face is recognized correctly
                     else:
                         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
@@ -280,8 +284,8 @@ def recognizeFace(ser, cap, face_cascade, recognizer):
                 return
 
         if recognized:
-            ser.write(b"YES")
-            print("Đã gửi: YES")
+            ser.write(f"Y.{recognized_id}".encode())
+            print(f"Đã gửi: Y.{recognized_id}")
             cv2.putText(frame, "RECOGNIZE SUCCESSFULLY", (50, 100), font, font_scale, (0, 255, 0), thickness)  # Adjusted position
         else:
             ser.write(b"NO")
@@ -295,6 +299,20 @@ def reloadRecognizer():
     global recognizer
     recognizer = cv2.face.LBPHFaceRecognizer_create()
     recognizer.read(r'D:\DATN\DATN_FINAL_main\FACE_RECOGNITION\recognizer\trainingData.yml')
+
+def insertIntoLog(method, identification, status):
+    conn = sqlite3.connect(r'D:\DATN\DATN_FINAL_main\FACE_RECOGNITION\data.db')
+    cursor = conn.execute("SELECT MAX(STT) FROM monitor")
+    max_stt = cursor.fetchone()[0]
+    if max_stt is None:
+        max_stt = 0
+    stt = max_stt + 1
+    current_time = datetime.now().strftime("%H:%M:%S")
+    current_date = datetime.now().strftime("%d:%m:%Y")
+    query = "INSERT INTO monitor(STT, Method, Identification, Status, Time, Day) VALUES(?, ?, ?, ?, ?, ?)"
+    conn.execute(query, (stt, method, identification, status, current_time, current_date))
+    conn.commit()
+    conn.close()
 
 # Cấu hình serial
 serial_port = "COM9"  # Thay bằng cổng serial của bạn
@@ -375,6 +393,53 @@ while True:
                     ser.write(b"False")
                     print("Đã gửi: False")
                 reloadRecognizer()  # Reload recognizer after deleting all data
+        elif serial_data.startswith("A.") or serial_data.startswith("U.") or serial_data.startswith("FA.") or serial_data.startswith("FIN.") or serial_data == "PW" or serial_data.startswith("RF.W") or serial_data.startswith("FA.W") or serial_data.startswith("FIN.W") or serial_data.startswith("PW.W"):
+            try:
+                clean_data = serial_data.replace("\x00", "").strip()
+                method = ""
+                name = ""
+                status = "Successful"
+                if serial_data.startswith("A.") or serial_data.startswith("U.") or serial_data.startswith("FA.") or serial_data.startswith("FIN."):
+                    if serial_data.endswith(".W"):
+                        method = serial_data.split(".")[0]
+                        status = "WRONG"
+                    else:
+                        id = int(clean_data.split(".")[1])
+                        if serial_data.startswith("A."):
+                            method = "RFID"
+                            name = f"Admin RFID {id}"
+                        elif serial_data.startswith("U."):
+                            method = "RFID"
+                            name = f"User RFID {id}"
+                        elif serial_data.startswith("FA."):
+                            method = "FACEID"
+                            name = f"FaceID {id}"
+                        elif serial_data.startswith("FIN."):
+                            method = "FINGERPRINT"
+                            name = f"Fingerprint {id}"
+                elif serial_data == "PW":
+                    method = "PASSWORD"
+                    name = ""
+                elif serial_data.startswith("RF.W"):
+                    method = "RFID"
+                    name = ""
+                    status = "WRONG"
+                elif serial_data.startswith("FA.W"):
+                    method = "FACEID"
+                    name = ""
+                    status = "WRONG"
+                elif serial_data.startswith("FIN.W"):
+                    method = "FINGERPRINT"
+                    name = ""
+                    status = "WRONG"
+                elif serial_data.startswith("PW.W"):
+                    method = "PASSWORD"
+                    name = ""
+                    status = "WRONG"
+                insertIntoLog(method, name, status)
+                print(f"Đã thêm vào log: Method={method}, Name={name}, Status={status}")
+            except (ValueError, IndexError) as e:
+                print(f"Lỗi khi xử lý dữ liệu serial: {e}")
     else:
         recognizeFace(ser, cap, face_cascade, recognizer)
 

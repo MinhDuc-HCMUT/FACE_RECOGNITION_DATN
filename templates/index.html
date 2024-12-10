@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WEBSITE TRACKING DOOR OPEN BEHAVIOR</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            width: 80%;
+            margin: 20px auto;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+            max-height: 70vh; /* Adjust the height as needed */
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            border: 2px solid #000000; /* Change this to your desired border color */
+        }
+        th, td {
+            padding: 12px;
+            text-align: center;
+            border: 1px solid #000; /* Change this to your desired border color */
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        h1 {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .highlight {
+            background-color: #ffcccc; /* Light red background */
+        }
+    </style>
+</head>
+<body>
+    <h1>WEBSITE TRACKING DOOR OPEN BEHAVIOR</h1>
+    <div class="container">
+        <table>
+            <thead>
+                <tr>
+                    <th>STT</th>
+                    <th>Method</th>
+                    <th>Identification</th>
+                    <th>Status</th>
+                    <th>Day</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody id="data-table">
+                {% for row in data %}
+                <tr class="{% if row[3] == 'WRONG' %}highlight{% endif %}">
+                    <td>{{ row[0] }}</td>
+                    <td>{{ row[1] }}</td>
+                    <td>{{ row[2] }}</td>
+                    <td>{{ row[3] }}</td>
+                    <td>{{ row[5] if row[5] else '' }}</td>
+                    <td>{{ row[4] if row[4] else '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <script>
+        function fetchData() {
+            fetch('/data')
+                .then(response => response.json())
+                .then(data => {
+                    const tableBody = document.getElementById('data-table');
+                    tableBody.innerHTML = '';
+                    data.forEach(row => {
+                        const tr = document.createElement('tr');
+                        if (row[3] === 'WRONG') {
+                            tr.classList.add('highlight');
+                        }
+                        row.forEach(cell => {
+                            const td = document.createElement('td');
+                            td.textContent = cell;
+                            tr.appendChild(td);
+                        });
+                        tableBody.appendChild(tr);
+                    });
+                });
+        }
+
+        setInterval(fetchData, 5000); // Fetch data every 5 seconds
+    </script>
+</body>
+</html>
